@@ -381,73 +381,23 @@ bool VertexAnaProcessor::process(IEvent* ievent) {
             //If this is MC check if MCParticle matched to the electron track is from rad or recoil
             if(!isData)
             {
-                //Build map of hits and the associated MC part ids for later
-                TRefArray* ele_trk_hits = ele_trk_gbl->getSvtHits();
-                std::map<int, std::vector<int> > trueHitIDs;
-                for(int i = 0; i < hits_->size(); i++)
-                {
-                    TrackerHit* hit = hits_->at(i);
-                    trueHitIDs[hit->getID()] = hit->getMCPartIDs();
-                }
-                //std::cout << "There are " << ele_trk_hits->GetEntries() << " hits on this track" << std::endl;
-                //Count the number of hits per part on the track
-                std::map<int, int> nHits4part;
-                for(int i = 0; i < ele_trk_hits->GetEntries(); i++)
-                {
-                    TrackerHit* eleHit = (TrackerHit*)ele_trk_hits->At(i);
-                    for(int idI = 0; idI < trueHitIDs[eleHit->getID()].size(); idI++ )
-                    {
-                        int partID = trueHitIDs[eleHit->getID()].at(idI);
-                        if ( nHits4part.find(partID) == nHits4part.end() ) 
-                        {
-                            // not found
-                            nHits4part[partID] = 1;
-                        } 
-                        else 
-                        {
-                            // found
-                            nHits4part[partID]++;
-                        }
-                    }
-                }
-
-                //Determine the MC part with the most hits on the track
-                int maxNHits = 0;
-                int maxID = 0;
-                for (std::map<int,int>::iterator it=nHits4part.begin(); it!=nHits4part.end(); ++it)
-                {
-                    if(it->second > maxNHits)
-                    {
-                        maxNHits = it->second;
-                        maxID = it->first;
-                    }
-                }
-
-                //Find the correct mc part and grab mother id
-                int isRadEle = 0;
-                int isRecEle = 0;
-                TVector3 trueEleP;
-                for(int i = 0; i < mcParts_->size(); i++)
-                {
-
-                    int momPDG = mcParts_->at(i)->getMomPDG();
-		    if(mcParts_->at(i)->getPDG() == 11 && momPDG == 625) 
-                    {
-                        std::vector<double> lP = mcParts_->at(i)->getMomentum();
-                        trueEleP.SetXYZ(lP[0],lP[1],lP[2]);
-                    }
-		    if(mcParts_->at(i)->getID() != maxID) continue;
-                    if(momPDG == 625) isRadEle = 1; 
-                    if(momPDG == 623) isRecEle = 1;
-                }
-                double momRatio = recEleP.Mag() / trueEleP.Mag();
-                double momAngle = trueEleP.Angle(recEleP) * TMath::RadToDeg();
-                if (!_reg_vtx_selectors[region]->passCutLt("momRatio_lt", momRatio, weight)) continue;
-                if (!_reg_vtx_selectors[region]->passCutGt("momRatio_gt", momRatio, weight)) continue;
-                if (!_reg_vtx_selectors[region]->passCutLt("momAngle_lt", momAngle, weight)) continue;
-
-                if (!_reg_vtx_selectors[region]->passCutEq("isRadEle_eq", isRadEle, weight)) continue;
-                if (!_reg_vtx_selectors[region]->passCutEq("isRecEle_eq", isRecEle, weight)) continue;
+	      int momToMatchPDG = 625;
+	      MCTruthMatch mctruth(ele_trk_gbl->getSvtHits(),momToMatchPDG);
+	      std::pair <int,int> maxIDHitsPair = mctruth.getMaxHitsOnTrkMCPair();
+	      std::cout << "max ID: " << maxIDHitsPair.first << std::endl;
+	      std::cout << "max Nhits: "<<  maxIDHitsPair.second << std::endl;
+	      bool isRadEle     = mctruth.isRadEle();
+	      bool isRecEle     = mctruth.isRecEle();
+	      TVector3 trueEleP = mctruth.getTrueEleP();
+	      
+	      double momRatio = recEleP.Mag() / trueEleP.Mag();
+	      double momAngle = trueEleP.Angle(recEleP) * TMath::RadToDeg();
+	      if (!_reg_vtx_selectors[region]->passCutLt("momRatio_lt", momRatio, weight)) continue;
+	      if (!_reg_vtx_selectors[region]->passCutGt("momRatio_gt", momRatio, weight)) continue;
+	      if (!_reg_vtx_selectors[region]->passCutLt("momAngle_lt", momAngle, weight)) continue;
+	      
+	      if (!_reg_vtx_selectors[region]->passCutEq("isRadEle_eq", (int)isRadEle, weight)) continue;
+	      if (!_reg_vtx_selectors[region]->passCutEq("isRecEle_eq", (int)isRecEle, weight)) continue;
             }
 
             //N selected vertices - this is quite a silly cut to make at the end. But okay. that's how we decided atm.
